@@ -1,0 +1,78 @@
+include:
+  # Core project files
+  - "/*.md"
+  - "pyproject.toml"
+  - "requirements.txt"
+  - ".gitignore"
+  
+  # Configuration files
+  - "configs/**/*.json"
+  - "configs/**/*.yaml"
+  
+  # Source code
+  - "src/**/*.py"
+  
+  # Scripts
+  - "scripts/**/*.py"
+  
+  # Documentation
+  - "docs/**/*.md"
+  
+  # Tests
+  - "tests/**/*.py"
+  
+  # Include only directory structure for data/models
+  - "data/"
+  - "models/"
+
+exclude:
+  # Python artifacts
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+  - "**/*.pyo"
+  - "**/*.pyd"
+  - "*.egg-info/**"
+  - "dist/**"
+  - "build/**"
+  
+  # Virtual environments
+  - ".venv/**"
+  - "venv/**"
+  - "env/**"
+  
+  # IDE files
+  - ".idea/**"
+  - ".vscode/**"
+  - "*.swp"
+  - "*.swo"
+  - ".DS_Store"
+  
+  # Large data files
+  - "data/**/*.xz"
+  - "data/**/*.txt"
+  - "data/**/*.csv"
+  - "data/**/*.jsonl"
+  - "models/**/*.bin"
+  - "models/**/*.pt"
+  - "models/**/*.pth"
+  - "models/**/*.safetensors"
+  
+  # Logs and temporary files
+  - "**/*.log"
+  - "tmp/**"
+  - ".pytest_cache/**"
+  - ".ipynb_checkpoints/**"
+  
+  # Claude-specific
+  - ".claude/**"
+
+# Critical files to always include
+always:
+  - "CLAUDE.md"
+  - "README.md"
+  - "src/domainbert/__init__.py"
+
+# Transform sample data files to show first lines only
+transforms:
+  - files: "data/**/*.{txt,csv,jsonl}"
+    type: Generic.FirstLinesTransformer

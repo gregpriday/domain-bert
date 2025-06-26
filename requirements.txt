@@ -1,0 +1,19 @@
+# Core dependencies
+torch>=2.0.0
+transformers>=4.30.0
+tldextract>=5.1.0
+pandas>=2.0.0
+numpy>=1.24.0
+tokenizers
+tqdm>=4.65.0
+
+# Dev dependencies
+pytest
+pytest-cov
+git-lfs
+xz-utils
+black
+flake8
+mypy
+jupyter
+ipykernel
