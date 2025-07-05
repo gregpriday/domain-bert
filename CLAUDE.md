@@ -243,3 +243,7 @@ IMPORTANT: Never create files in the root directory unless absolutely necessary.
   - Test results and reports go in `reports/`
   - Configuration files go in `configs/`
   - Keep the root directory clean with only essential files like README.md, CLAUDE.md, requirements.txt, pyproject.toml, and .gitignore
+
+# Git Best Practices
+  - Always commit changes using the user greg@siteorigin.com with the name Greg Priday.
+  - Try to not mention Claude Code in your commit messages.
