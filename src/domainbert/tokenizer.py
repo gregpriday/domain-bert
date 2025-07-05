@@ -59,16 +59,15 @@ class DomainPreTokenizer:
                 splits.append(('.', (offset, offset + 1), (3, 0)))
                 offset += 1
             
-            # Add TLD characters (including dots within compound TLDs like co.uk)
+            # Add entire TLD as a single token
             suffix_start = offset
-            for i, char in enumerate(extracted.suffix):
-                if offset < len(text):
-                    if char == '.':
-                        # Dot within TLD is a separator
-                        splits.append((char, (offset, offset + 1), (3, 0)))  # token_type=3 for separator
-                    else:
-                        splits.append((char, (offset, offset + 1), (2, i)))  # token_type=2 for TLD
-                    offset += 1
+            suffix_end = offset + len(extracted.suffix)
+            # Check if TLD is in vocabulary, otherwise use [UNK_TLD]
+            tld_token = extracted.suffix
+            # Check if this TLD exists in the tokenizer's vocabulary
+            # If not, it will be handled by the tokenizer's UNK mechanism
+            splits.append((tld_token, (suffix_start, suffix_end), (2, 0)))  # token_type=2 for TLD
+            offset = suffix_end
         
         return splits
     
@@ -115,11 +114,33 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
         clean_up_tokenization_spaces=True,
         **kwargs
     ):
-        # Build the base tokenizer
+        # Initialize domain parser first
+        self.parser = DomainParser()
+        
+        # First load TLD vocabulary so it can be included in base tokenizer
+        self.tld_to_id = {"[PAD_TLD]": 0, "[UNK_TLD]": 1}
+        self.id_to_tld = {0: "[PAD_TLD]", 1: "[UNK_TLD]"}
+        
+        if tld_vocab_file:
+            with open(tld_vocab_file, 'r') as f:
+                tld_vocab = json.load(f)
+                # Handle both formats: nested dict with 'tld_to_id' key or flat dict
+                if isinstance(tld_vocab, dict):
+                    if 'tld_to_id' in tld_vocab:
+                        self.tld_to_id = tld_vocab['tld_to_id']
+                    else:
+                        # Flat dictionary format
+                        self.tld_to_id = tld_vocab
+                    
+                    # Convert string keys to int values if needed
+                    self.tld_to_id = {k: int(v) if isinstance(v, str) else v for k, v in self.tld_to_id.items()}
+                    self.id_to_tld = {v: k for k, v in self.tld_to_id.items()}
+        
+        # Build the base tokenizer (now includes TLDs)
         if vocab_file:
             tokenizer = Tokenizer.from_file(vocab_file)
         else:
-            # Create character-level BPE tokenizer
+            # Create tokenizer with characters and TLDs
             tokenizer = self._create_base_tokenizer()
         
         # Set up post-processing with special tokens
@@ -148,43 +169,22 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
             **kwargs
         )
         
-        # TLD vocabulary
-        self.tld_to_id = {"[PAD_TLD]": 0, "[UNK_TLD]": 1}
-        self.id_to_tld = {0: "[PAD_TLD]", 1: "[UNK_TLD]"}
-        
-        if tld_vocab_file:
-            with open(tld_vocab_file, 'r') as f:
-                tld_vocab = json.load(f)
-                # Handle both formats: nested dict with 'tld_to_id' key or flat dict
-                if isinstance(tld_vocab, dict):
-                    if 'tld_to_id' in tld_vocab:
-                        self.tld_to_id = tld_vocab['tld_to_id']
-                    else:
-                        # Flat dictionary format
-                        self.tld_to_id = tld_vocab
-                    
-                    # Convert string keys to int values if needed
-                    self.tld_to_id = {k: int(v) if isinstance(v, str) else v for k, v in self.tld_to_id.items()}
-                    self.id_to_tld = {v: k for k, v in self.tld_to_id.items()}
-        
         # Domain pre-tokenizer for structure extraction
         self.domain_pretokenizer = DomainPreTokenizer()
-        
-        # Domain parser for build_tld_vocabulary
-        self.parser = DomainParser()
         
         # Store max length
         self._max_length = max_length
     
     def _create_base_tokenizer(self):
-        """Create the base character-level tokenizer"""
+        """Create the base tokenizer with characters and TLDs"""
         # Character vocabulary
         vocab = {
             "[PAD]": 0,
             "[MASK]": 1,
             "[CLS]": 2,
             "[SEP]": 3,
-            "[UNK]": 4
+            "[UNK]": 4,
+            "[UNK_TLD]": 5  # Unknown TLD token
         }
         
         # Add only valid domain name characters
@@ -200,16 +200,110 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
         vocab['-'] = len(vocab)
         vocab['.'] = len(vocab)
         
-        # Create BPE model
-        tokenizer = Tokenizer(BPE(vocab=vocab, merges=[], unk_token="[UNK]"))
+        # Add TLDs from vocabulary if available
+        if hasattr(self, 'tld_to_id') and self.tld_to_id:
+            for tld, tld_id in self.tld_to_id.items():
+                if tld not in ["[PAD_TLD]", "[UNK_TLD]", "<PAD>", "<UNK>"]:
+                    vocab[tld] = len(vocab)
         
-        # Use character-level pre-tokenization
+        # Create WordLevel model for exact token matching
+        tokenizer = Tokenizer(models.WordLevel(vocab=vocab, unk_token="[UNK]"))
+        
+        # Use simple whitespace pre-tokenizer (we'll handle domain splitting in encode)
         tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
         
-        # Set decoder
-        tokenizer.decoder = decoders.BPEDecoder()
+        # No special decoder needed for WordLevel
+        tokenizer.decoder = None
         
         return tokenizer
+    
+    def tokenize(self, text: str, **kwargs) -> List[str]:
+        """Override tokenization to handle domain structure with TLDs as single tokens"""
+        # Parse domain structure
+        extracted = self.parser.extract(text.lower())
+        tokens = []
+        
+        # Add subdomain tokens (character by character)
+        if extracted.subdomain:
+            for char in extracted.subdomain:
+                if char in self.vocab:
+                    tokens.append(char)
+                else:
+                    tokens.append('[UNK]')
+            tokens.append('.')  # separator
+        
+        # Add main domain tokens (character by character)
+        for char in extracted.domain:
+            if char in self.vocab:
+                tokens.append(char)
+            else:
+                tokens.append('[UNK]')
+        
+        # Add TLD as a single token
+        if extracted.suffix:
+            tokens.append('.')  # separator
+            # Check if TLD is in vocabulary
+            if extracted.suffix in self.vocab:
+                tokens.append(extracted.suffix)
+            else:
+                # For unknown TLDs, use [UNK_TLD]
+                tokens.append('[UNK_TLD]')
+        
+        return tokens
+    
+    def _encode_plus(
+        self,
+        text,
+        text_pair=None,
+        add_special_tokens=True,
+        padding_strategy=None,
+        truncation_strategy=None,
+        max_length=None,
+        stride=0,
+        is_split_into_words=False,
+        pad_to_multiple_of=None,
+        return_tensors=None,
+        return_token_type_ids=None,
+        return_attention_mask=None,
+        return_overflowing_tokens=False,
+        return_special_tokens_mask=False,
+        return_offsets_mapping=False,
+        return_length=False,
+        verbose=True,
+        **kwargs
+    ):
+        """Override to use our custom tokenization"""
+        # First tokenize using our custom method
+        tokens = self.tokenize(text)
+        
+        # Convert tokens to IDs
+        input_ids = self.convert_tokens_to_ids(tokens)
+        
+        # Add special tokens if requested
+        if add_special_tokens:
+            input_ids = [self.cls_token_id] + input_ids + [self.sep_token_id]
+        
+        # Create encoding
+        encoding = {"input_ids": input_ids}
+        
+        # Add attention mask
+        if return_attention_mask is not False:
+            encoding["attention_mask"] = [1] * len(input_ids)
+        
+        # Handle padding/truncation
+        if max_length is not None:
+            if len(input_ids) > max_length:
+                # Truncate
+                for key in encoding:
+                    encoding[key] = encoding[key][:max_length]
+            elif padding_strategy == "max_length":
+                # Pad
+                pad_length = max_length - len(input_ids)
+                encoding["input_ids"] = encoding["input_ids"] + [self.pad_token_id] * pad_length
+                if "attention_mask" in encoding:
+                    encoding["attention_mask"] = encoding["attention_mask"] + [0] * pad_length
+        
+        return encoding
     
     def __call__(
         self,
