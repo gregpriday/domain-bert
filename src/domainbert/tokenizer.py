@@ -31,11 +31,16 @@ class DomainPreTokenizer:
         
         # Add subdomain if present
         if extracted.subdomain:
-            for i, char in enumerate(extracted.subdomain):
-                splits.append((char, (offset, offset + 1), (1, i)))  # token_type=1 for subdomain
+            subdomain_chars = extracted.subdomain
+            for i, char in enumerate(subdomain_chars):
+                if char == '.':
+                    # Dot within subdomain is a separator
+                    splits.append((char, (offset, offset + 1), (3, 0)))  # token_type=3 for separator
+                else:
+                    splits.append((char, (offset, offset + 1), (1, i)))  # token_type=1 for subdomain
                 offset += 1
             
-            # Add dot separator
+            # Add dot separator between subdomain and domain
             if offset < len(text) and text[offset] == '.':
                 splits.append(('.', (offset, offset + 1), (3, 0)))  # token_type=3 for separator
                 offset += 1
@@ -53,26 +58,52 @@ class DomainPreTokenizer:
                 splits.append(('.', (offset, offset + 1), (3, 0)))
                 offset += 1
             
-            # Add TLD characters
+            # Add TLD characters (including dots within compound TLDs like co.uk)
+            suffix_start = offset
             for i, char in enumerate(extracted.suffix):
                 if offset < len(text):
-                    splits.append((char, (offset, offset + 1), (2, i)))  # token_type=2 for TLD
+                    if char == '.':
+                        # Dot within TLD is a separator
+                        splits.append((char, (offset, offset + 1), (3, 0)))  # token_type=3 for separator
+                    else:
+                        splits.append((char, (offset, offset + 1), (2, i)))  # token_type=2 for TLD
                     offset += 1
         
         return splits
     
     def pre_tokenize_str(self, text):
-        """Interface for tokenizers library"""
+        """Interface for tokenizers library - returns list of (token, token_type) tuples"""
         class PreTok:
             def __init__(self, text):
                 self.text = text
         
         pretok = PreTok(text)
-        return self.pre_tokenize(pretok)
+        splits = self.pre_tokenize(pretok)
+        
+        # Convert to expected format: list of (token, token_type) tuples
+        result = []
+        for token, span, (token_type, _) in splits:
+            result.append((token, token_type))
+        
+        return result
 
 
 class DomainBertTokenizerFast(PreTrainedTokenizerFast):
     """Fast domain tokenizer with structural token typing"""
+    
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        """Load tokenizer from pretrained model"""
+        import os
+        from pathlib import Path
+        
+        # Check if tld_vocab.json exists in the directory
+        path = Path(pretrained_model_name_or_path)
+        tld_vocab_file = path / "tld_vocab.json"
+        if tld_vocab_file.exists():
+            kwargs['tld_vocab_file'] = str(tld_vocab_file)
+        
+        return super().from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
     
     def __init__(
         self,
@@ -117,14 +148,23 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
         )
         
         # TLD vocabulary
-        self.tld_to_id = {"<PAD>": 0, "<UNK>": 1}
-        self.id_to_tld = {0: "<PAD>", 1: "<UNK>"}
+        self.tld_to_id = {"[PAD_TLD]": 0, "[UNK_TLD]": 1}
+        self.id_to_tld = {0: "[PAD_TLD]", 1: "[UNK_TLD]"}
         
         if tld_vocab_file:
             with open(tld_vocab_file, 'r') as f:
                 tld_vocab = json.load(f)
-                self.tld_to_id = tld_vocab.get('tld_to_id', self.tld_to_id)
-                self.id_to_tld = {v: k for k, v in self.tld_to_id.items()}
+                # Handle both formats: nested dict with 'tld_to_id' key or flat dict
+                if isinstance(tld_vocab, dict):
+                    if 'tld_to_id' in tld_vocab:
+                        self.tld_to_id = tld_vocab['tld_to_id']
+                    else:
+                        # Flat dictionary format
+                        self.tld_to_id = tld_vocab
+                    
+                    # Convert string keys to int values if needed
+                    self.tld_to_id = {k: int(v) if isinstance(v, str) else v for k, v in self.tld_to_id.items()}
+                    self.id_to_tld = {v: k for k, v in self.tld_to_id.items()}
         
         # Domain pre-tokenizer for structure extraction
         self.domain_pretokenizer = DomainPreTokenizer()
@@ -143,9 +183,18 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
             "[UNK]": 4
         }
         
-        # Add printable ASCII characters
-        for i in range(32, 127):
-            vocab[chr(i)] = len(vocab)
+        # Add only valid domain name characters
+        # Letters a-z (domains are case-insensitive, we use lowercase)
+        for c in 'abcdefghijklmnopqrstuvwxyz':
+            vocab[c] = len(vocab)
+        
+        # Digits 0-9
+        for c in '0123456789':
+            vocab[c] = len(vocab)
+        
+        # Hyphen and period (valid in domains)
+        vocab['-'] = len(vocab)
+        vocab['.'] = len(vocab)
         
         # Create BPE model
         tokenizer = Tokenizer(BPE(vocab=vocab, merges=[], unk_token="[UNK]"))
@@ -223,7 +272,9 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
                 
                 # Get TLD ID
                 tld = extracted.suffix or 'unknown'
-                tld_id = self.tld_to_id.get(tld, self.tld_to_id['<UNK>'])
+                # Try to get unknown TLD ID - check both possible keys
+                unk_tld_id = self.tld_to_id.get('[UNK_TLD]', self.tld_to_id.get('<UNK>', 1))
+                tld_id = self.tld_to_id.get(tld, unk_tld_id)
                 tld_ids.append(tld_id)
                 
                 # Create structural token types
@@ -234,7 +285,10 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
         if return_token_type_ids is not False and structural_token_types:
             if isinstance(text, str):
                 # Single encoding
-                max_len = len(encoding['input_ids'])
+                if return_tensors == "pt":
+                    max_len = encoding['input_ids'].shape[-1]
+                else:
+                    max_len = len(encoding['input_ids'])
                 types = structural_token_types[0]
                 
                 # Pad or truncate to match encoded length
@@ -243,11 +297,18 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
                 else:
                     types = types[:max_len]
                 
-                encoding['token_type_ids'] = types
+                if return_tensors == "pt":
+                    encoding['token_type_ids'] = torch.tensor([types])
+                else:
+                    encoding['token_type_ids'] = types
             else:
                 # Batch encoding
-                batch_size = len(encoding['input_ids'])
-                max_len = len(encoding['input_ids'][0]) if return_tensors else max(len(ids) for ids in encoding['input_ids'])
+                if return_tensors == "pt":
+                    batch_size = encoding['input_ids'].shape[0]
+                    max_len = encoding['input_ids'].shape[1]
+                else:
+                    batch_size = len(encoding['input_ids'])
+                    max_len = max(len(ids) for ids in encoding['input_ids'])
                 
                 # Create properly padded token type IDs
                 final_token_types = []
@@ -374,10 +435,17 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
         )
         
         with open(tld_vocab_file, 'w') as f:
-            json.dump({
-                'tld_to_id': self.tld_to_id,
-                'version': '1.0'
-            }, f, indent=2)
+            json.dump(self.tld_to_id, f, indent=2)
         
         # For compatibility, return as tuple
         return (tld_vocab_file,)
+    
+    def save_pretrained(self, save_directory, **kwargs):
+        """Save the tokenizer configuration and vocabulary"""
+        # Save the base tokenizer
+        files = super().save_pretrained(save_directory, **kwargs)
+        
+        # Also save TLD vocabulary
+        self.save_vocabulary(save_directory)
+        
+        return files

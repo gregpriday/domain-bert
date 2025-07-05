@@ -4,18 +4,18 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
+/build/
+/develop-eggs/
+/dist/
+/downloads/
+/eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+/lib/
+/lib64/
+/parts/
+/sdist/
+/var/
+/wheels/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -25,11 +25,11 @@ MANIFEST
 # Virtual Environments
 .env
 .venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+/env/
+/venv/
+/ENV/
+/env.bak/
+/venv.bak/
 
 # PyCharm
 .idea/
@@ -46,9 +46,9 @@ venv.bak/
 .AppleDouble
 .LSOverride
 
-# Data and Models
-data/
-models/
+# Data and Models (root directories only)
+/data/
+/models/
 *.pt
 *.pth
 *.bin
@@ -60,11 +60,11 @@ models/
 *.hdf5
 
 # Logs
-logs/
+/logs/
 *.log
-wandb/
-tensorboard/
-runs/
+/wandb/
+/tensorboard/
+/runs/
 
 # Testing
 .tox/
@@ -77,23 +77,23 @@ htmlcov/
 .hypothesis/
 
 # Documentation
-docs/_build/
-docs/build/
-site/
+/docs/_build/
+/docs/build/
+/site/
 
 # Distribution / packaging
 .Python
-develop-eggs/
-downloads/
-eggs/
+/develop-eggs/
+/downloads/
+/eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
+/lib/
+/lib64/
+/parts/
+/sdist/
+/var/
+/wheels/
+/pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -125,8 +125,15 @@ share/python-wheels/
 *.sqlite3
 
 # Specific project files
-scripts/*.out
-scripts/*.err
-output/
-checkpoints/
-results/
+/scripts/*.out
+/scripts/*.err
+/output/
+/checkpoints/
+/results/
+/reports/
+
+# Keep only essential data files
+!data/processed/domains/dataset_manifest.json
+!data/processed/domains/sampling_strategy.json
+!data/processed/domains/worker_file_groups.json
+!data/processed/domains/tld_stats.json

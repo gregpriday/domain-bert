@@ -24,13 +24,13 @@ python -c "import torch; print(f'MPS available: {torch.backends.mps.is_available
 
 ### 2. Quick Test Run (10K samples)
 ```bash
-python train.py --preset test
+python scripts/train_launcher.py --preset test
 ```
 This runs a quick test with 10,000 samples to verify everything works (~5-10 minutes).
 
 ### 3. Full Training
 ```bash
-python train.py --preset full
+python scripts/train_launcher.py --preset full
 ```
 This runs the full training pipeline. Expect 2-7 days depending on your M1 variant.
 
@@ -155,7 +155,7 @@ The streaming dataset automatically handles the 1.65B domains without loading ev
 
 ### Resume Training
 ```bash
-python train.py --preset full \
+python scripts/train_launcher.py --preset full \
     --resume models/domain-bert-full/checkpoint-50000
 ```
 
@@ -167,7 +167,7 @@ python train.py --preset full \
 4. **Monitor temperatures** and adjust batch size if throttling
 5. **Custom settings** if auto-detection needs adjustment:
    ```bash
-   python train.py --preset full --batch_size 32 --gradient_accumulation_steps 16
+   python scripts/train_launcher.py --preset full --batch_size 32 --gradient_accumulation_steps 16
    ```
 
 ## Comparison with GPU Training

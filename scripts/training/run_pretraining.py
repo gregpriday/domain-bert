@@ -2,6 +2,7 @@
 """
 Main pretraining script for DomainBERT.
 
+Automatically detects hardware (CPU/CUDA/MPS) and optimizes accordingly.
 Uses Hugging Face Trainer for distributed training on domain data.
 """
 import argparse
@@ -39,10 +40,55 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+def detect_hardware():
+    """Detect available hardware and return optimized settings."""
+    if torch.cuda.is_available():
+        device_type = "cuda"
+        device_name = torch.cuda.get_device_name(0)
+        device_count = torch.cuda.device_count()
+        logger.info(f"CUDA available: {device_name} x {device_count}")
+        
+        # CUDA optimized settings
+        settings = {
+            "per_device_train_batch_size": 128,
+            "gradient_accumulation_steps": 2,
+            "fp16": True,
+            "dataloader_num_workers": 4,
+        }
+    elif torch.backends.mps.is_available():
+        device_type = "mps"
+        logger.info("Apple Silicon (MPS) detected")
+        
+        # M1/M2/M3 optimized settings
+        settings = {
+            "per_device_train_batch_size": 64,
+            "gradient_accumulation_steps": 8,
+            "fp16": False,  # Not well supported on MPS
+            "dataloader_num_workers": 0,  # Avoid multiprocessing issues
+            "gradient_checkpointing": False,  # Not implemented yet
+        }
+        
+        # Set MPS fallback for unsupported operations
+        os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+    else:
+        device_type = "cpu"
+        logger.info("No GPU detected, using CPU")
+        
+        # CPU settings
+        settings = {
+            "per_device_train_batch_size": 16,
+            "gradient_accumulation_steps": 16,
+            "fp16": False,
+            "dataloader_num_workers": 2,
+        }
+    
+    return device_type, settings
+
 # Sample file mapping
 SAMPLE_FILES = {
     "tiny": ["domains_tiny.txt"],
-    "small": ["domains_small.txt"],
+    "small": ["domains_small.txt", "domains_tiny.txt"],  # Fallback to tiny if small doesn't exist
     "medium": ["domains_medium.txt"],
     "large": ["domains_large.txt"],
     "full": None,  # Use all available files
@@ -196,6 +242,9 @@ def get_data_files(data_dir: Path, sample: str) -> List[str]:
 
 
 def main():
+    # Detect hardware and get optimized settings
+    device_type, hw_settings = detect_hardware()
+    
     # Parse arguments
     parser = HfArgumentParser((ModelArguments, DataArguments, PretrainingArguments))
     
@@ -212,7 +261,22 @@ def main():
     log_level = training_args.get_process_log_level()
     logger.setLevel(log_level)
     
+    # Apply hardware-optimized settings if not explicitly set
+    if not any(arg.startswith("--per_device_train_batch_size") for arg in sys.argv):
+        training_args.per_device_train_batch_size = hw_settings["per_device_train_batch_size"]
+    if not any(arg.startswith("--gradient_accumulation_steps") for arg in sys.argv):
+        training_args.gradient_accumulation_steps = hw_settings["gradient_accumulation_steps"]
+    if not any(arg.startswith("--fp16") for arg in sys.argv):
+        training_args.fp16 = hw_settings["fp16"]
+    if not any(arg.startswith("--dataloader_num_workers") for arg in sys.argv):
+        training_args.dataloader_num_workers = hw_settings["dataloader_num_workers"]
+    
+    # Enable gradient checkpointing if supported (TODO: implement in model)
+    if hw_settings.get("gradient_checkpointing", False) and hasattr(model, 'gradient_checkpointing_enable'):
+        training_args.gradient_checkpointing = True
+    
     # Log basic information
+    logger.info(f"Hardware: {device_type.upper()}")
     logger.info(f"Training/evaluation parameters {training_args}")
     logger.info(f"Model parameters {model_args}")
     logger.info(f"Data parameters {data_args}")
@@ -240,6 +304,9 @@ def main():
     with open(model_args.model_config_path, 'r') as f:
         config_dict = json.load(f)
     config = DomainBertConfig(**config_dict)
+    
+    # Gradient checkpointing not yet implemented in DomainBertModel
+    # TODO: Add gradient checkpointing support to model
     
     # Load tokenizer
     tokenizer_path = model_args.tokenizer_path or Path(data_args.data_dir)
@@ -332,8 +399,11 @@ def main():
         
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         
-        # Save model
-        trainer.save_model()
+        # Save model with safe_serialization=False due to shared tensors between embeddings
+        trainer.model.save_pretrained(
+            training_args.output_dir, 
+            safe_serialization=False
+        )
         
         # Save training metrics
         metrics = train_result.metrics

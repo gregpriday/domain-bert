@@ -34,7 +34,8 @@ class DomainEmbeddings(nn.Module):
     
     def __init__(self, config: DomainBertConfig):
         super().__init__()
-        self.char_embeddings = nn.Embedding(config.char_vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
+        # Character embeddings for domain characters
+        self.char_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
         
@@ -111,12 +112,12 @@ class DomainBertModel(PreTrainedModel):
         
         # Create BERT encoder with our config
         bert_config = BertConfig(
-            vocab_size=config.char_vocab_size,
+            vocab_size=config.vocab_size,
             hidden_size=config.hidden_size,
             num_hidden_layers=config.num_hidden_layers,
             num_attention_heads=config.num_attention_heads,
             intermediate_size=config.intermediate_size,
-            hidden_act="gelu",
+            hidden_act=config.hidden_act,
             hidden_dropout_prob=config.hidden_dropout_prob,
             attention_probs_dropout_prob=config.attention_probs_dropout_prob,
             max_position_embeddings=config.max_position_embeddings,
@@ -229,7 +230,7 @@ class DomainBertForMaskedLM(PreTrainedModel):
             nn.Linear(config.hidden_size, config.hidden_size),
             nn.GELU(),
             nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps),
-            nn.Linear(config.hidden_size, config.char_vocab_size)
+            nn.Linear(config.hidden_size, config.vocab_size)
         )
         
         # TLD prediction head
@@ -294,7 +295,7 @@ class DomainBertForMaskedLM(PreTrainedModel):
         
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
-            mlm_loss = loss_fct(mlm_logits.view(-1, self.config.char_vocab_size), labels.view(-1))
+            mlm_loss = loss_fct(mlm_logits.view(-1, self.config.vocab_size), labels.view(-1))
             total_loss = self.config.mlm_weight * mlm_loss
         
         if tld_labels is not None and tld_logits is not None:
@@ -323,9 +324,9 @@ class DomainBertForSequenceClassification(PreTrainedModel):
     config_class = DomainBertConfig
     base_model_prefix = "domain_bert"
     
-    def __init__(self, config: DomainBertConfig, num_labels: int = 2):
+    def __init__(self, config: DomainBertConfig):
         super().__init__(config)
-        self.num_labels = num_labels
+        self.num_labels = getattr(config, 'num_labels', 2)
         self.config = config
         
         # Base model
@@ -333,7 +334,7 @@ class DomainBertForSequenceClassification(PreTrainedModel):
         
         # Classification head
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, num_labels)
+        self.classifier = nn.Linear(config.hidden_size, self.num_labels)
         
         # Initialize weights
         self.post_init()

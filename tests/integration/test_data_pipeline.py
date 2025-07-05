@@ -184,7 +184,8 @@ class TestDataPipelineIntegration:
             data_dir=str(temp_data_dir),
             tokenizer=mock_tokenizer,
             shuffle=True,
-            shuffle_buffer_size=5
+            shuffle_buffer_size=5,
+            seed=42  # First seed
         )
         
         # Collect domains from two iterations
@@ -194,13 +195,13 @@ class TestDataPipelineIntegration:
                 break
             first_iteration.append(item["input_ids"])
         
-        # Reset and iterate again
+        # Reset and iterate again with different seed
         dataset = MultiFileStreamingDataset(
             data_dir=str(temp_data_dir),
             tokenizer=mock_tokenizer,
             shuffle=True,
             shuffle_buffer_size=5,
-            seed=42  # Different seed
+            seed=123  # Different seed
         )
         
         second_iteration = []

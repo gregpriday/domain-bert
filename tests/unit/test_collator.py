@@ -26,6 +26,11 @@ class TestDataCollatorForDomainMLM:
         tokenizer.convert_ids_to_tokens = lambda ids: [f"token_{i}" for i in ids]
         tokenizer.tld_to_id = {"[UNK_TLD]": 999}
         tokenizer.unk_tld_id = 999
+        tokenizer.get_special_tokens_mask = lambda token_ids_0, token_ids_1=None, already_has_special_tokens=False: [
+            1 if token in [0, 2, 3, 4] else 0 for token in token_ids_0
+        ]
+        tokenizer.mask_token = "[MASK]"
+        tokenizer.convert_tokens_to_ids = lambda token: 4 if token == "[MASK]" else 1
         return tokenizer
     
     def test_collator_initialization(self, mock_tokenizer):

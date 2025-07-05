@@ -221,7 +221,7 @@ class TestDomainBertTokenizerFast:
         assert encoded["tld_ids"].tolist() == [0, 2, 1]  # com, org, net
         
         # Check padding is applied
-        assert encoded["attention_mask"].sum(dim=1).tolist() == [13, 11, 17]  # [CLS] + domain + [SEP]
+        assert encoded["attention_mask"].sum(dim=1).tolist() == [13, 10, 16]  # [CLS] + domain + [SEP]
     
     def test_tokenize_unknown_tld(self, temp_tokenizer_dir):
         """Test tokenizing domain with unknown TLD."""

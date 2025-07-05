@@ -17,16 +17,16 @@ The easiest way to start training is using presets:
 
 ```bash
 # Test run (10K samples, ~10 minutes)
-python train.py --preset test
+python scripts/train_launcher.py --preset test
 
 # Small run (1M samples, ~1 hour)
-python train.py --preset small
+python scripts/train_launcher.py --preset small
 
 # Medium run (100M samples, ~1 day)
-python train.py --preset medium
+python scripts/train_launcher.py --preset medium
 
 # Full training (all 1.65B domains, 2-7 days)
-python train.py --preset full
+python scripts/train_launcher.py --preset full
 ```
 
 ### Custom Training
@@ -119,7 +119,7 @@ python train.py --preset full \
 
 ```bash
 # Resume from checkpoint
-python train.py --preset full \
+python scripts/train_launcher.py --preset full \
     --resume models/domain-bert-full/checkpoint-50000
 
 # Or with the training script directly
@@ -133,7 +133,7 @@ If you run out of memory:
 
 1. Reduce batch size:
    ```bash
-   python train.py --batch_size 32
+   python scripts/train_launcher.py --batch_size 32
    ```
 
 2. Increase gradient accumulation:
@@ -153,7 +153,7 @@ If you run out of memory:
 
 For NVIDIA GPUs with Tensor Cores:
 ```bash
-python train.py --preset full --fp16
+python scripts/train_launcher.py --preset full --fp16
 ```
 
 For AMD GPUs or newer NVIDIA GPUs:
@@ -167,14 +167,14 @@ python scripts/training/run_pretraining.py \
 
 #### Weights & Biases
 ```bash
-python train.py --preset full \
+python scripts/train_launcher.py --preset full \
     --report_to wandb \
     --run_name "domainbert-full-run"
 ```
 
 #### TensorBoard
 ```bash
-python train.py --preset full \
+python scripts/train_launcher.py --preset full \
     --report_to tensorboard \
     --logging_dir ./logs
 ```
