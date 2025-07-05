@@ -122,8 +122,21 @@ class TrainingReadinessTester:
     def test_tokenizer(self) -> DomainBertTokenizerFast:
         """Test tokenizer functionality."""
         try:
+            # Look for TLD vocab in different locations
+            tld_vocab_paths = [
+                Path("src/domainbert/data/tld_vocab.json"),
+                Path("data/processed/domains/tld_vocab.json"),
+                Path("tokenizer/tld_vocab.json"),
+            ]
+            
+            tld_vocab_file = None
+            for path in tld_vocab_paths:
+                if path.exists():
+                    tld_vocab_file = str(path)
+                    break
+            
             tokenizer = DomainBertTokenizerFast(
-                tld_vocab_file="tokenizer/tld_vocab.json",
+                tld_vocab_file=tld_vocab_file,
                 max_len=64
             )
             
@@ -321,14 +334,13 @@ class TrainingReadinessTester:
                 outputs = model(**batch)
                 
                 loss = outputs.loss
-                mlm_logits = outputs.prediction_logits
-                tld_logits = outputs.tld_logits
+                mlm_logits = outputs.logits
+                # TLD logits not directly exposed in MaskedLMOutput
             
             self.results['forward_pass'] = {
                 'status': 'passed',
                 'loss': float(loss.item()),
-                'mlm_logits_shape': list(mlm_logits.shape),
-                'tld_logits_shape': list(tld_logits.shape)
+                'mlm_logits_shape': list(mlm_logits.shape)
             }
             
             print("✓ Forward pass successful")
@@ -401,8 +413,8 @@ class TrainingReadinessTester:
             import tempfile
             
             with tempfile.TemporaryDirectory() as temp_dir:
-                # Save model
-                model.save_pretrained(temp_dir)
+                # Save model with safe_serialization=False due to shared tensors
+                model.save_pretrained(temp_dir, safe_serialization=False)
                 tokenizer.save_pretrained(temp_dir)
                 
                 # Check files exist

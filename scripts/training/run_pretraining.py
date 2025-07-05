@@ -55,6 +55,7 @@ def detect_hardware():
             "gradient_accumulation_steps": 2,
             "fp16": True,
             "dataloader_num_workers": 4,
+            "gradient_checkpointing": True,
         }
     elif torch.backends.mps.is_available():
         device_type = "mps"
@@ -271,8 +272,8 @@ def main():
     if not any(arg.startswith("--dataloader_num_workers") for arg in sys.argv):
         training_args.dataloader_num_workers = hw_settings["dataloader_num_workers"]
     
-    # Enable gradient checkpointing if supported (TODO: implement in model)
-    if hw_settings.get("gradient_checkpointing", False) and hasattr(model, 'gradient_checkpointing_enable'):
+    # Enable gradient checkpointing if supported
+    if hw_settings.get("gradient_checkpointing", False):
         training_args.gradient_checkpointing = True
     
     # Log basic information
@@ -332,6 +333,11 @@ def main():
     # Initialize model
     logger.info("Initializing model from scratch")
     model = DomainBertForMaskedLM(config)
+    
+    # Enable gradient checkpointing if requested
+    if training_args.gradient_checkpointing:
+        model.gradient_checkpointing_enable()
+        logger.info("Gradient checkpointing enabled")
     
     # Log model size
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

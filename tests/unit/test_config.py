@@ -19,8 +19,8 @@ class TestDomainBertConfig:
         config = DomainBertConfig()
         
         # Check default values
-        assert config.vocab_size == 133  # 128 ASCII + 5 special tokens
-        assert config.hidden_size == 256
+        assert config.vocab_size == 43  # 38 valid domain chars + 5 special tokens
+        assert config.hidden_size == 768
         assert config.num_hidden_layers == 12
         assert config.num_attention_heads == 8
         assert config.intermediate_size == 1024
@@ -29,7 +29,7 @@ class TestDomainBertConfig:
         assert config.attention_probs_dropout_prob == 0.1
         assert config.max_position_embeddings == 128
         assert config.type_vocab_size == 4
-        assert config.tld_vocab_size == 1000
+        assert config.tld_vocab_size == 513
         assert config.mlm_weight == 0.85
         assert config.tld_weight == 0.15
         assert config.initializer_range == 0.02
@@ -195,15 +195,15 @@ class TestDomainBertConfig:
         config = DomainBertConfig(**old_config_dict)
         
         # Should use defaults for missing values
-        assert config.tld_vocab_size == 1000  # default
+        assert config.tld_vocab_size == 513  # default
         assert config.mlm_weight == 0.85  # default
         assert config.tld_weight == 0.15  # default
     
     def test_config_extra_fields(self):
         """Test config handles extra fields properly."""
         config_dict = {
-            "vocab_size": 133,
-            "hidden_size": 256,
+            "vocab_size": 43,
+            "hidden_size": 768,
             "extra_field": "should_be_ignored",
             "another_extra": 123
         }
@@ -212,5 +212,5 @@ class TestDomainBertConfig:
         config = DomainBertConfig(**config_dict)
         
         # Extra fields might be stored but not as main attributes
-        assert config.vocab_size == 133
-        assert config.hidden_size == 256
+        assert config.vocab_size == 43
+        assert config.hidden_size == 768

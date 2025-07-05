@@ -20,8 +20,10 @@ class DataCollatorForDomainMLM(DataCollatorForLanguageModeling):
             self.unk_tld_id = self.tokenizer.unk_tld_id
         elif hasattr(self.tokenizer, 'tld_to_id') and '[UNK_TLD]' in self.tokenizer.tld_to_id:
             self.unk_tld_id = self.tokenizer.tld_to_id['[UNK_TLD]']
+        elif hasattr(self.tokenizer, 'tld_to_id') and '<UNK>' in self.tokenizer.tld_to_id:
+            self.unk_tld_id = self.tokenizer.tld_to_id['<UNK>']
         else:
-            self.unk_tld_id = 999  # Default matching the test
+            self.unk_tld_id = 1  # Default to 1 which is the UNK token in our vocab
     
     def mask_tokens(self, inputs: torch.Tensor, special_tokens_mask: Optional[List[List[int]]] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         """Mask tokens for MLM training following the 80/10/10 rule."""

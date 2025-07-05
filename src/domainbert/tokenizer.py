@@ -2,7 +2,6 @@
 
 import json
 import os
-import tldextract
 import torch
 from typing import Optional, Tuple, Union, Dict, List, Any
 from collections import Counter
@@ -11,19 +10,21 @@ from tokenizers import Tokenizer, models, pre_tokenizers, decoders, trainers, pr
 from tokenizers.models import BPE
 from transformers import PreTrainedTokenizerFast, BatchEncoding
 
+from .domain_parser import DomainParser, extract as extract_domain
+
 
 class DomainPreTokenizer:
     """Custom pre-tokenizer that preserves domain structure"""
     
     def __init__(self):
-        self.extractor = tldextract.extract
+        self.parser = DomainParser()
     
     def pre_tokenize(self, pretok):
         """Split domain into structured components with labels"""
         text = pretok.text
         
         # Extract domain components
-        extracted = self.extractor(text.lower())
+        extracted = self.parser.extract(text.lower())
         
         # Build splits with component labels
         splits = []
@@ -169,6 +170,9 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
         # Domain pre-tokenizer for structure extraction
         self.domain_pretokenizer = DomainPreTokenizer()
         
+        # Domain parser for build_tld_vocabulary
+        self.parser = DomainParser()
+        
         # Store max length
         self._max_length = max_length
     
@@ -268,7 +272,7 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
         for domain in texts:
             if isinstance(domain, str):
                 # Extract components
-                extracted = tldextract.extract(domain.lower())
+                extracted = self.parser.extract(domain.lower())
                 
                 # Get TLD ID
                 tld = extracted.suffix or 'unknown'
@@ -411,7 +415,7 @@ class DomainBertTokenizerFast(PreTrainedTokenizerFast):
         tld_counter = Counter()
         
         for domain in domains:
-            extracted = tldextract.extract(domain.lower())
+            extracted = self.parser.extract(domain.lower())
             tld = extracted.suffix or 'unknown'
             tld_counter[tld] += 1
         

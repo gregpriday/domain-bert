@@ -1,0 +1,138 @@
+{
+  "timestamp": "2025-07-05T12:33:12.986852",
+  "summary": {
+    "total_tests": 10,
+    "passed": 9,
+    "failed": 0,
+    "skipped": 1,
+    "ready_for_training": true
+  },
+  "test_results": {
+    "config": {
+      "status": "passed",
+      "hidden_size": 768,
+      "num_layers": 12,
+      "num_attention_heads": 12,
+      "vocab_size": 43,
+      "tld_vocab_size": 513,
+      "max_position_embeddings": 64
+    },
+    "tokenizer": {
+      "status": "passed",
+      "tld_vocab_size": 513,
+      "max_length": 64,
+      "test_batch_shape": {
+        "input_ids": [
+          4,
+          34
+        ],
+        "token_type_ids": [
+          4,
+          34
+        ],
+        "attention_mask": [
+          4,
+          34
+        ],
+        "tld_ids": [
+          4
+        ]
+      }
+    },
+    "model": {
+      "status": "passed",
+      "total_params": 86801260,
+      "trainable_params": 86801260,
+      "total_size_mb": 331.1205291748047,
+      "modules": "DomainBertModel"
+    },
+    "dataset": {
+      "status": "passed",
+      "test_files": 5,
+      "samples_tested": 10,
+      "estimated_total_size": 250000000
+    },
+    "collator": {
+      "status": "passed",
+      "output_keys": [
+        "input_ids",
+        "attention_mask",
+        "token_type_ids",
+        "tld_ids",
+        "labels",
+        "tld_labels"
+      ],
+      "mlm_probability": 0.15,
+      "tld_mask_probability": 0.1
+    },
+    "dataloader": {
+      "status": "passed",
+      "batch_size": 16,
+      "batch_keys": [
+        "input_ids",
+        "attention_mask",
+        "token_type_ids",
+        "tld_ids",
+        "labels",
+        "tld_labels"
+      ],
+      "batch_shapes": {
+        "input_ids": [
+          16,
+          64
+        ],
+        "attention_mask": [
+          16,
+          64
+        ],
+        "token_type_ids": [
+          16,
+          64
+        ],
+        "tld_ids": [
+          16
+        ],
+        "labels": [
+          16,
+          64
+        ],
+        "tld_labels": [
+          16
+        ]
+      }
+    },
+    "forward_pass": {
+      "status": "passed",
+      "loss": NaN,
+      "mlm_logits_shape": [
+        16,
+        64,
+        43
+      ]
+    },
+    "performance": {
+      "status": "passed",
+      "batches_tested": 10,
+      "elapsed_seconds": 3.547344207763672,
+      "samples_per_second": 45.10416543447519,
+      "memory_before_mb": 1287.140625,
+      "memory_after_mb": 1326.109375,
+      "memory_increase_mb": 38.96875
+    },
+    "checkpointing": {
+      "status": "passed",
+      "files_saved": 6,
+      "can_reload": true
+    },
+    "multi_gpu": {
+      "status": "skipped",
+      "reason": "No GPU available"
+    }
+  },
+  "system_info": {
+    "pytorch_version": "2.7.0",
+    "cuda_available": false,
+    "gpu_count": 0,
+    "cpu_count": 10
+  }
+}

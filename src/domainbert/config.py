@@ -33,8 +33,8 @@ class DomainBertConfig(PretrainedConfig):
         self,
         vocab_size=43,  # 5 special + 26 letters + 10 digits + hyphen + period
         char_vocab_size=38,  # 26 letters + 10 digits + hyphen + period
-        tld_vocab_size=1000,
-        hidden_size=256,
+        tld_vocab_size=513,
+        hidden_size=768,
         num_hidden_layers=12,
         num_attention_heads=8,
         intermediate_size=1024,

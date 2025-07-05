@@ -10,7 +10,7 @@
   "attention_probs_dropout_prob": 0.1,
   "max_position_embeddings": 64,
   "type_vocab_size": 4,
-  "tld_vocab_size": 2000,
+  "tld_vocab_size": 513,
   "tld_embed_dim": 64,
   "initializer_range": 0.02,
   "layer_norm_eps": 1e-12,

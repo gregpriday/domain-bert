@@ -132,6 +132,14 @@ class DomainBertModel(PreTrainedModel):
         
         # Initialize weights
         self.post_init()
+        
+    def gradient_checkpointing_enable(self):
+        """Enable gradient checkpointing for memory efficiency"""
+        self.encoder.gradient_checkpointing = True
+        
+    def gradient_checkpointing_disable(self):
+        """Disable gradient checkpointing"""
+        self.encoder.gradient_checkpointing = False
     
     def get_input_embeddings(self):
         return self.embeddings.char_embeddings
@@ -241,6 +249,14 @@ class DomainBertForMaskedLM(PreTrainedModel):
         
         # Initialize weights
         self.post_init()
+        
+    def gradient_checkpointing_enable(self):
+        """Enable gradient checkpointing for memory efficiency"""
+        self.domain_bert.gradient_checkpointing_enable()
+        
+    def gradient_checkpointing_disable(self):
+        """Disable gradient checkpointing"""
+        self.domain_bert.gradient_checkpointing_disable()
     
     def get_output_embeddings(self):
         return self.mlm_predictions[-1]
