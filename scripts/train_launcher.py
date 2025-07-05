@@ -18,6 +18,7 @@ Usage:
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -106,6 +107,7 @@ Examples:
     parser.add_argument("--output_dir", type=str, help="Output directory")
     parser.add_argument("--fp16", action="store_true", help="Use mixed precision")
     parser.add_argument("--resume", type=str, help="Resume from checkpoint")
+    parser.add_argument("--wandb_project", type=str, help="Weights & Biases project name")
     
     # Parse known args
     args, unknown_args = parser.parse_known_args()
@@ -159,9 +161,14 @@ Examples:
     print(" ".join(cmd))
     print()
     
+    # Set environment variables if needed
+    env = os.environ.copy()
+    if args.wandb_project:
+        env['WANDB_PROJECT'] = args.wandb_project
+    
     # Run training
     try:
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True, env=env)
     except KeyboardInterrupt:
         print("\nTraining interrupted by user")
         sys.exit(1)

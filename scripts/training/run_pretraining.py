@@ -135,8 +135,8 @@ class DataArguments:
         metadata={"help": "Maximum sequence length for tokenization"}
     )
     mlm_probability: float = field(
-        default=0.15,
-        metadata={"help": "Ratio of tokens to mask for MLM"}
+        default=0.30,
+        metadata={"help": "Ratio of non-TLD tokens to mask for MLM (30% for domain-specific training)"}
     )
     tld_mask_probability: float = field(
         default=0.10,

@@ -8,10 +8,12 @@ from transformers import DataCollatorForLanguageModeling
 
 @dataclass
 class DataCollatorForDomainMLM(DataCollatorForLanguageModeling):
-    """Enhanced data collator with separate TLD masking probability"""
+    """Enhanced data collator with domain-specific masking strategy"""
     
+    mlm_probability: float = 0.30  # 30% masking for non-TLD tokens
     tld_mask_probability: float = 0.1  # Separate probability for TLD masking
     mask_tld_separately: bool = True   # Whether to mask TLDs as a separate task
+    mask_tld_tokens_in_sequence: bool = False  # Never mask TLD tokens in the sequence
     
     def __post_init__(self):
         """Set up TLD unknown ID."""
@@ -26,7 +28,13 @@ class DataCollatorForDomainMLM(DataCollatorForLanguageModeling):
             self.unk_tld_id = 1  # Default to 1 which is the UNK token in our vocab
     
     def mask_tokens(self, inputs: torch.Tensor, special_tokens_mask: Optional[List[List[int]]] = None) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Mask tokens for MLM training following the 80/10/10 rule."""
+        """Mask tokens for MLM training following domain-specific strategy.
+        
+        - Masks 30% of non-TLD tokens (characters and dots)
+        - Never masks TLD tokens in the sequence
+        - Uses 90/10 rule (90% mask, 10% keep)
+        - Ensures at least 1 token is masked per domain
+        """
         labels = inputs.clone()
         
         # Get special tokens mask if not provided
@@ -36,24 +44,38 @@ class DataCollatorForDomainMLM(DataCollatorForLanguageModeling):
         # Convert to tensor
         special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
         
-        # Create probability matrix
-        probability_matrix = torch.full(labels.shape, self.mlm_probability)
-        probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
+        # Create TLD mask to identify TLD tokens in the sequence
+        tld_token_mask = self._get_tld_token_mask(inputs)
         
-        # Create mask
-        masked_indices = torch.bernoulli(probability_matrix).bool()
-        labels[~masked_indices] = -100  # We only compute loss on masked tokens
+        # Combine masks: don't mask special tokens OR TLD tokens
+        combined_mask = special_tokens_mask | tld_token_mask
         
-        # 80% of the time, replace masked input tokens with [MASK] 
-        indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+        # For each sequence in the batch
+        batch_size, seq_len = inputs.shape
+        masked_indices = torch.zeros_like(inputs, dtype=torch.bool)
+        
+        for i in range(batch_size):
+            # Find maskable positions (non-special, non-TLD tokens)
+            maskable_positions = ~combined_mask[i]
+            maskable_indices = maskable_positions.nonzero(as_tuple=True)[0]
+            
+            if len(maskable_indices) > 0:
+                # Calculate number of tokens to mask (30% of maskable tokens, minimum 1)
+                num_to_mask = max(1, int(round(0.30 * len(maskable_indices))))
+                
+                # Randomly select positions to mask
+                mask_positions = maskable_indices[torch.randperm(len(maskable_indices))[:num_to_mask]]
+                masked_indices[i, mask_positions] = True
+        
+        # Set labels to -100 for non-masked tokens
+        labels[~masked_indices] = -100
+        
+        # Apply masking: 90% [MASK], 10% keep original
+        replace_mask = torch.bernoulli(torch.full_like(masked_indices.float(), 0.9)).bool()
+        indices_replaced = masked_indices & replace_mask
         inputs[indices_replaced] = self.tokenizer.mask_token_id
         
-        # 10% of the time, replace masked input tokens with random token
-        indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
-        random_words = torch.randint(self.tokenizer.vocab_size, labels.shape, dtype=torch.long)
-        inputs[indices_random] = random_words[indices_random]
-        
-        # The rest of the time (10%) we keep the masked input tokens unchanged
+        # The remaining 10% keep their original tokens
         
         return inputs, labels
     
@@ -110,6 +132,33 @@ class DataCollatorForDomainMLM(DataCollatorForLanguageModeling):
             special_tokens_mask.append(row_mask)
         
         return special_tokens_mask
+    
+    def _get_tld_token_mask(self, inputs: torch.Tensor) -> torch.Tensor:
+        """Create mask identifying TLD tokens in the sequence.
+        
+        Returns tensor with True for TLD tokens, False otherwise.
+        """
+        tld_mask = torch.zeros_like(inputs, dtype=torch.bool)
+        
+        # Get all TLD token IDs from vocabulary (excluding special TLD tokens)
+        tld_token_ids = set()
+        if hasattr(self.tokenizer, 'vocab'):
+            vocab = self.tokenizer.vocab
+            for token, token_id in vocab.items():
+                # TLD tokens are those that match common TLD patterns
+                # and are not single characters or special tokens
+                if (len(token) > 1 and '.' not in token and 
+                    token not in ['[PAD]', '[MASK]', '[CLS]', '[SEP]', '[UNK]', '[UNK_TLD]'] and
+                    not token.startswith('[') and not token.endswith(']')):
+                    # Check if this looks like a TLD (all lowercase letters or contains dot for compound TLDs)
+                    if token.isalpha() and token.islower():
+                        tld_token_ids.add(token_id)
+        
+        # Mark positions containing TLD tokens
+        for tld_id in tld_token_ids:
+            tld_mask |= (inputs == tld_id)
+        
+        return tld_mask
     
     def torch_mask_tokens(self, inputs: torch.Tensor, special_tokens_mask: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         """Override parent's method to use our mask_tokens implementation."""
