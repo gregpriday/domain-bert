@@ -31,9 +31,9 @@ class DomainBertConfig(PretrainedConfig):
     
     def __init__(
         self,
-        vocab_size=43,  # 5 special + 26 letters + 10 digits + hyphen + period
-        char_vocab_size=38,  # 26 letters + 10 digits + hyphen + period
-        tld_vocab_size=513,
+        vocab_size=555,  # 44 char tokens (incl special) + 511 TLD tokens
+        char_vocab_size=44,  # 5 special + 26 letters + 10 digits + hyphen + period + [UNK_TLD]
+        tld_vocab_size=511,  # Actual TLD vocabulary
         hidden_size=768,
         num_hidden_layers=12,
         num_attention_heads=8,

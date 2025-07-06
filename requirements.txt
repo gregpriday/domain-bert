@@ -6,6 +6,10 @@ pandas>=2.0.0
 numpy>=1.24.0
 tokenizers
 tqdm>=4.65.0
+evaluate
+accelerate>=0.26.0
+wandb
+tensorboard
 
 # Dev dependencies
 pytest

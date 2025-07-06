@@ -103,11 +103,13 @@ class MultiFileStreamingDataset(IterableDataset):
                 self.file_paths = [str(self.data_dir / f) for f in files]
                 self.files = [self.data_dir / f for f in files]
             else:
-                # Find all domain files
-                self.files = sorted(list(self.data_dir.glob("*.txt")) + 
-                                  list(self.data_dir.glob("*.txt.gz")) + 
-                                  list(self.data_dir.glob("*.xz")) +
-                                  list(self.data_dir.glob("*.csv")))
+                # Find all domain files recursively
+                self.files = sorted(list(self.data_dir.rglob("*.txt")) + 
+                                  list(self.data_dir.rglob("*.txt.gz")) + 
+                                  list(self.data_dir.rglob("*.xz")) +
+                                  list(self.data_dir.rglob("*.csv")))
+                # Filter out small files (less than 1KB) to avoid empty files
+                self.files = [f for f in self.files if f.stat().st_size > 1024]
                 self.file_paths = [str(f) for f in self.files]
         elif file_paths:
             self.file_paths = sorted(file_paths)
